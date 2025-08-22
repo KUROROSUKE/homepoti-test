@@ -2,8 +2,20 @@
 // UI wiring (no anonymous login)
 // ==============================
 
-const auth = firebase.auth();
-const database = firebase.database();
+// ★ ここでは firebase.* を即呼ばない。
+//    初期化後に確実に取得する。
+let auth = null;
+let database = null;
+
+function ensureFirebaseReady() {
+  if (!firebase.apps || !firebase.apps.length) {
+    throw new Error("Firebase not initialized. Check firebase-config.js load and config.");
+  }
+  if (!auth || !database) {
+    auth = firebase.auth();
+    database = firebase.database();
+  }
+}
 
 const postText = document.getElementById("postText");
 const postImage = document.getElementById("postImage");
@@ -19,12 +31,21 @@ const PAGE_SIZE = 10;
 const shown = new Set();
 
 // ===== Auth state gating =====
-auth.onAuthStateChanged(user => {
-  postBtn.disabled = !user;
-});
+function bindAuthState() {
+  ensureFirebaseReady();
+  auth.onAuthStateChanged(user => {
+    postBtn.disabled = !user;
+  });
+}
 
 // ===== Composer =====
 postBtn.addEventListener("click", async () => {
+  try {
+    ensureFirebaseReady();
+  } catch (e) {
+    alert("初期化前です。firebase-config.jsの配置と読み込み順を確認してください。");
+    return;
+  }
   const user = auth.currentUser;
   if (!user) { alert("ログインしてください"); return; }
   const textHTML = postText.value;
@@ -64,6 +85,7 @@ async function renderPost(postId, uid, position = "bottom") {
 
   // 購入ボタン（ログイン必須）
   buyBtn.addEventListener("click", async () => {
+    try { ensureFirebaseReady(); } catch { alert("初期化前です"); return; }
     if (!auth.currentUser) { alert("ログインしてください"); return; }
     const message = prompt("購入メッセージを入力してください（任意）", "");
     try {
@@ -83,6 +105,15 @@ async function renderPost(postId, uid, position = "bottom") {
 }
 
 async function initialLoad() {
+  try {
+    ensureFirebaseReady();
+  } catch (e) {
+    console.error(e);
+    alert("Firebase未初期化。firebase-config.jsの配置と読み込み順を確認してください。");
+    return;
+  }
+  bindAuthState();
+
   const page = await fetchFeedPage(null, PAGE_SIZE);
   if (page.length === 0) {
     loadMoreBtn.style.display = "none";
@@ -101,6 +132,7 @@ async function initialLoad() {
 }
 
 function attachLiveFeed() {
+  // ensureFirebaseReady は initialLoad 内で実行済み想定
   const now = Date.now();
   const ref = database.ref("feeds/public").orderByChild("createdAt").startAt(now);
   ref.on("child_added", async snap => {
@@ -112,6 +144,7 @@ function attachLiveFeed() {
 }
 
 loadMoreBtn.addEventListener("click", async () => {
+  try { ensureFirebaseReady(); } catch { alert("初期化前です"); return; }
   loadMoreBtn.disabled = true;
   const prev = loadMoreBtn.textContent;
   loadMoreBtn.textContent = "読み込み中...";
