@@ -1,69 +1,116 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Safe Feed App</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="shortcut icon" href="https://kurorosuke.github.io/homepoti/favicon.ico" />
+    <link rel="stylesheet" href="main.css" />
+    <title>褒めポチ</title>
 
-  <!-- GitHub Pages用。meta CSP（frame-ancestorsは不可） -->
-  <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; script-src 'self' https://www.gstatic.com https://www.googleapis.com https://cdn.jsdelivr.net; connect-src 'self' https://*.googleapis.com https://*.gstatic.com https://*.firebaseio.com wss://*.firebaseio.com https://*.firebasedatabase.app wss://*.firebasedatabase.app; object-src 'none'; base-uri 'self'">
-  <link rel="icon" href="./favicon.ico">
-  <link rel="stylesheet" href="./main.css" />
+    <!-- Firebase compat -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
-  <!-- Firebase SDKs -->
-  <script defer src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-  <script defer src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-  <script defer src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-
-  <!-- DOMPurify -->
-  <script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.0.2/dist/purify.min.js"></script>
-
-  <!-- Firebase設定（自分の値に置換） -->
-  <script defer src="./firebase-config.js?v=3"></script>
-
-  <!-- アプリ本体 -->
-  <script defer src="./connectDB.js?v=3"></script>
-  <script defer src="./main.js?v=3"></script>
+    <script src="connectDB.js"></script>
 </head>
 <body>
-  <header class="app-header">
-    <h1>Safe Feed</h1>
-  </header>
+    <!-- 効果音（任意） -->
+    <audio id="ordersSound" preload="auto">
+      <source src="data:audio/mp3;base64,//uQZAAAAAAAAAAAAAAAAAAAA" type="audio/mpeg">
+    </audio>
 
-  <main class="container">
-    <section class="composer card">
-      <h2>新規投稿</h2>
-      <p class="note">ログイン済みのユーザーのみ投稿できます。</p>
-      <textarea id="postText" placeholder="h1 や img など一部HTML可"></textarea>
-      <div class="row">
-        <input type="file" id="postImage" accept="image/*" />
-        <button id="postBtn" disabled>投稿</button>
-      </div>
-    </section>
+    <!-- 未ログイン -->
+    <div style="text-align: center;" id="notSigned">
+    <h3>ログインしてください</h3>
+    <button onclick="loginWithGoogle()">Googleでログイン</button>
+    <button onclick="loginWithMail()">メールでログイン</button>
+    <button onclick="SignUpWithMail()">メールで新規登録</button>
+    </div>
 
-    <section class="feed card">
-      <h2>公開フィード（新しい順）</h2>
-      <div id="feedList"></div>
-      <button id="loadMoreBtn" class="secondary">さらに読み込む</button>
-    </section>
-  </main>
 
-  <template id="postTemplate">
-    <article class="post">
-      <div class="post-head">
-        <img class="avatar" />
-        <div class="meta">
-          <div class="name"></div>
-          <time class="time"></time>
+    <!-- 投稿一覧 -->
+    <div id="viewScreen" style="display:none;overflow-y:scroll;height:calc(100vh - 70px)">
+        <button id="loadMoreBtn" style="display:none;">さらに読み込む</button>
+    </div>
+
+    <!-- 投稿する -->
+    <div id="postScreen" style="display:none;">
+        <div class="InputForm">
+        <textarea id="postTextInput" placeholder="今日はなにした？" maxlength="280"></textarea>
+        <div id="charCount">0</div>
+        <input type="file" id="fileInput" accept="image/*" onchange="viewImageCanvas()">
+        <canvas id="canvas" style="display:none;"></canvas>
+        <button onclick="post()">投稿</button>
         </div>
+    </div>
+
+    <!-- サービス管理 -->
+    <div id="servicesScreen" style="display:none;">
+      <div class="InputForm">
+        <h3>サービスを登録</h3>
+        <input id="svcTitle" class="svc-input" type="text" placeholder="タイトル" maxlength="40">
+        <textarea id="svcDesc" class="svc-input" placeholder="説明" maxlength="200"></textarea>
+        <input id="svcPrice" class="svc-input" type="number" min="0" step="1" placeholder="価格（コイン）">
+        <label class="svc-inline"><input id="svcActive" type="checkbox" checked> 公開</label>
+        <button id="svcAddBtn">追加 / 更新</button>
       </div>
-      <img class="photo" />
-      <div class="body"></div>
-      <div class="actions">
-        <button class="buyBtn">購入する</button>
+
+      <div class="InputForm">
+        <h3>自分のサービス</h3>
+        <div id="myServicesList" class="svc-list"></div>
       </div>
-    </article>
-  </template>
+
+      <div class="InputForm">
+        <h3>受けた注文 <span id="ordersBadge" class="badge" style="display:none;">0</span></h3>
+        <div id="myOrdersList" class="order-list"></div>
+      </div>
+    </div>
+
+    <!-- マーケット -->
+    <div id="marketScreen" style="display:none;">
+      <!-- ★ コインHUDはマーケットだけで表示 -->
+      <div id="coinHUD" aria-label="coin HUD" style="display:none;">
+        🪙 <span id="coinBalance">0</span>
+      </div>
+
+      <div class="InputForm">
+        <h3>マーケット</h3>
+        <div id="marketList" class="svc-list"></div>
+      </div>
+    </div>
+
+    <!-- ナビ -->
+    <div id="bottomNav" style="display: none;">
+        <div class="navigater">
+        <button class="nav_buttons" onclick="switchTab('view')" aria-label="ViewScreen">
+            <img src="../Icons/view.png" alt="view" class="nav_icon">
+        </button>
+        </div>
+        <div class="divider"></div>
+        <div class="navigater">
+        <button class="nav_buttons" onclick="switchTab('post')" aria-label="PostScreen">
+            <img src="../Icons/post.png" alt="post" class="nav_icon">
+        </button>
+        </div>
+        <div class="divider"></div>
+        <div class="navigater">
+        <button class="nav_buttons" onclick="switchTab('services')" aria-label="ServicesScreen">
+            <img src="../Icons/service.png" alt="services" class="nav_icon">
+        </button>
+        </div>
+        <div class="divider"></div>
+        <div class="navigater">
+        <button class="nav_buttons" onclick="switchTab('market')" aria-label="MarketScreen">
+            <img src="../Icons/market.png" alt="market" class="nav_icon">
+        </button>
+        </div>
+    </div>
+
+
+
+    <!-- switchTab は main.js 側で定義 -->
+    <script src="main.js"></script>
 </body>
 </html>
