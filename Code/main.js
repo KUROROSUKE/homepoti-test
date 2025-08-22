@@ -1,15 +1,13 @@
 // ==============================
-// UI wiring (no anonymous login)
+// UI wiring (auth required to view)
 // ==============================
 
-// ★ ここでは firebase.* を即呼ばない。
-//    初期化後に確実に取得する。
 let auth = null;
 let database = null;
 
 function ensureFirebaseReady() {
   if (!firebase.apps || !firebase.apps.length) {
-    throw new Error("Firebase not initialized. Check firebase-config.js load and config.");
+    throw new Error("Firebase not initialized. Check firebase-config.js.");
   }
   if (!auth || !database) {
     auth = firebase.auth();
@@ -26,33 +24,38 @@ const loadMoreBtn = document.getElementById("loadMoreBtn");
 const postTemplate = document.getElementById("postTemplate");
 
 let oldestLoadedTime = null;
-let liveFeedAttached = false;
 const PAGE_SIZE = 10;
 const shown = new Set();
 
-// ===== Auth state gating =====
+// Realtime購読は原則オフ（WSSを避ける）。必要ならtrue
+const USE_REALTIME = false;
+
+// ===== Auth gating =====
+function onAuthReady(user) {
+  postBtn.disabled = !user;
+  // 未ログインならフィードを触らない
+  if (!user) {
+    feedList.innerHTML = "<p>閲覧にはログインが必要です。</p>";
+    loadMoreBtn.style.display = "none";
+    return;
+  }
+  // ログイン後に初回ロード
+  initialLoadOnce();
+}
+
 function bindAuthState() {
   ensureFirebaseReady();
-  auth.onAuthStateChanged(user => {
-    postBtn.disabled = !user;
-  });
+  auth.onAuthStateChanged(onAuthReady);
 }
 
 // ===== Composer =====
 postBtn.addEventListener("click", async () => {
-  try {
-    ensureFirebaseReady();
-  } catch (e) {
-    alert("初期化前です。firebase-config.jsの配置と読み込み順を確認してください。");
-    return;
-  }
+  try { ensureFirebaseReady(); } catch (e) { alert("初期化前です"); return; }
   const user = auth.currentUser;
   if (!user) { alert("ログインしてください"); return; }
   const textHTML = postText.value;
   let imageBlob = null;
-  if (postImage.files && postImage.files[0]) {
-    imageBlob = postImage.files[0];
-  }
+  if (postImage.files && postImage.files[0]) imageBlob = postImage.files[0];
   postBtn.disabled = true;
   try {
     await uploadPost(textHTML, imageBlob);
@@ -72,7 +75,6 @@ async function renderPost(postId, uid, position = "bottom") {
   shown.add(postId);
 
   const node = document.importNode(postTemplate.content, true);
-  const article = node.querySelector("article.post");
   const avatarEl = node.querySelector(".avatar");
   const nameEl = node.querySelector(".name");
   const timeEl = node.querySelector(".time");
@@ -83,7 +85,6 @@ async function renderPost(postId, uid, position = "bottom") {
   const ok = await loadPostInto(postId, uid, photoEl, bodyEl, { avatarEl, nameEl, timeEl });
   if (!ok) return;
 
-  // 購入ボタン（ログイン必須）
   buyBtn.addEventListener("click", async () => {
     try { ensureFirebaseReady(); } catch { alert("初期化前です"); return; }
     if (!auth.currentUser) { alert("ログインしてください"); return; }
@@ -104,15 +105,11 @@ async function renderPost(postId, uid, position = "bottom") {
   }
 }
 
-async function initialLoad() {
-  try {
-    ensureFirebaseReady();
-  } catch (e) {
-    console.error(e);
-    alert("Firebase未初期化。firebase-config.jsの配置と読み込み順を確認してください。");
-    return;
-  }
-  bindAuthState();
+let _loadedOnce = false;
+async function initialLoadOnce() {
+  if (_loadedOnce) return;
+  _loadedOnce = true;
+  try { ensureFirebaseReady(); } catch (e) { console.error(e); return; }
 
   const page = await fetchFeedPage(null, PAGE_SIZE);
   if (page.length === 0) {
@@ -125,14 +122,13 @@ async function initialLoad() {
   oldestLoadedTime = page[page.length - 1].createdAt;
   loadMoreBtn.style.display = "block";
 
-  if (!liveFeedAttached) {
+  if (USE_REALTIME) {
     attachLiveFeed();
-    liveFeedAttached = true;
   }
 }
 
+// Realtime購読（既定で無効）
 function attachLiveFeed() {
-  // ensureFirebaseReady は initialLoad 内で実行済み想定
   const now = Date.now();
   const ref = database.ref("feeds/public").orderByChild("createdAt").startAt(now);
   ref.on("child_added", async snap => {
@@ -145,6 +141,7 @@ function attachLiveFeed() {
 
 loadMoreBtn.addEventListener("click", async () => {
   try { ensureFirebaseReady(); } catch { alert("初期化前です"); return; }
+  if (!auth.currentUser) { alert("ログインしてください"); return; }
   loadMoreBtn.disabled = true;
   const prev = loadMoreBtn.textContent;
   loadMoreBtn.textContent = "読み込み中...";
@@ -167,4 +164,7 @@ loadMoreBtn.addEventListener("click", async () => {
   }
 });
 
-window.addEventListener("DOMContentLoaded", initialLoad);
+window.addEventListener("DOMContentLoaded", () => {
+  try { ensureFirebaseReady(); } catch (e) { console.error(e); return; }
+  bindAuthState();
+});
