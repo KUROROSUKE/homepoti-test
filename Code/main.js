@@ -1,0 +1,137 @@
+// ==============================
+// UI wiring (no anonymous login)
+// ==============================
+
+const auth = firebase.auth();
+const database = firebase.database();
+
+const postText = document.getElementById("postText");
+const postImage = document.getElementById("postImage");
+const postBtn = document.getElementById("postBtn");
+
+const feedList = document.getElementById("feedList");
+const loadMoreBtn = document.getElementById("loadMoreBtn");
+const postTemplate = document.getElementById("postTemplate");
+
+let oldestLoadedTime = null;
+let liveFeedAttached = false;
+const PAGE_SIZE = 10;
+const shown = new Set();
+
+// ===== Auth state gating =====
+auth.onAuthStateChanged(user => {
+  postBtn.disabled = !user;
+});
+
+// ===== Composer =====
+postBtn.addEventListener("click", async () => {
+  const user = auth.currentUser;
+  if (!user) { alert("ログインしてください"); return; }
+  const textHTML = postText.value;
+  let imageBlob = null;
+  if (postImage.files && postImage.files[0]) {
+    imageBlob = postImage.files[0];
+  }
+  postBtn.disabled = true;
+  try {
+    await uploadPost(textHTML, imageBlob);
+    postText.value = "";
+    postImage.value = "";
+  } catch (e) {
+    console.error(e);
+    alert("投稿に失敗しました");
+  } finally {
+    postBtn.disabled = !auth.currentUser;
+  }
+});
+
+// ===== Feed =====
+async function renderPost(postId, uid, position = "bottom") {
+  if (shown.has(postId)) return;
+  shown.add(postId);
+
+  const node = document.importNode(postTemplate.content, true);
+  const article = node.querySelector("article.post");
+  const avatarEl = node.querySelector(".avatar");
+  const nameEl = node.querySelector(".name");
+  const timeEl = node.querySelector(".time");
+  const photoEl = node.querySelector(".photo");
+  const bodyEl = node.querySelector(".body");
+  const buyBtn = node.querySelector(".buyBtn");
+
+  const ok = await loadPostInto(postId, uid, photoEl, bodyEl, { avatarEl, nameEl, timeEl });
+  if (!ok) return;
+
+  // 購入ボタン（ログイン必須）
+  buyBtn.addEventListener("click", async () => {
+    if (!auth.currentUser) { alert("ログインしてください"); return; }
+    const message = prompt("購入メッセージを入力してください（任意）", "");
+    try {
+      await purchaseWithMessage(uid, postId, message || "");
+      alert("購入リクエストとメッセージを送信しました");
+    } catch (e) {
+      console.error(e);
+      alert("購入に失敗しました");
+    }
+  });
+
+  if (position === "top") {
+    feedList.prepend(node);
+  } else {
+    feedList.appendChild(node);
+  }
+}
+
+async function initialLoad() {
+  const page = await fetchFeedPage(null, PAGE_SIZE);
+  if (page.length === 0) {
+    loadMoreBtn.style.display = "none";
+    return;
+  }
+  for (const item of page) {
+    await renderPost(item.postId, item.uid, "bottom");
+  }
+  oldestLoadedTime = page[page.length - 1].createdAt;
+  loadMoreBtn.style.display = "block";
+
+  if (!liveFeedAttached) {
+    attachLiveFeed();
+    liveFeedAttached = true;
+  }
+}
+
+function attachLiveFeed() {
+  const now = Date.now();
+  const ref = database.ref("feeds/public").orderByChild("createdAt").startAt(now);
+  ref.on("child_added", async snap => {
+    const v = snap.val() || {};
+    const postId = snap.key;
+    if (!postId) return;
+    await renderPost(postId, v.uid, "top");
+  });
+}
+
+loadMoreBtn.addEventListener("click", async () => {
+  loadMoreBtn.disabled = true;
+  const prev = loadMoreBtn.textContent;
+  loadMoreBtn.textContent = "読み込み中...";
+  try {
+    const page = await fetchFeedPage(oldestLoadedTime, PAGE_SIZE);
+    if (page.length === 0) {
+      loadMoreBtn.textContent = "これ以上ありません";
+      return;
+    }
+    for (const item of page) {
+      await renderPost(item.postId, item.uid, "bottom");
+    }
+    oldestLoadedTime = page[page.length - 1].createdAt;
+    loadMoreBtn.textContent = prev;
+  } catch (e) {
+    console.error(e);
+    loadMoreBtn.textContent = "エラー。再試行";
+  } finally {
+    loadMoreBtn.disabled = false;
+  }
+});
+
+window.addEventListener("DOMContentLoaded", initialLoad);
