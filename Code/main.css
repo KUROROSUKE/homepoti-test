@@ -1,19 +1,272 @@
-* { box-sizing: border-box; }
-body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Yu Gothic', sans-serif; background:#111; color:#eee; }
-a { color: #4ea1ff; text-decoration: none; }
-.app-header { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:#181818; border-bottom:1px solid #333; }
-.app-header h1 { margin:0; font-size:20px; }
-.container { max-width:900px; margin:24px auto; padding:0 12px; }
-.card { background:#151515; border:1px solid #333; border-radius:12px; padding:16px; margin-bottom:16px; }
-.row { display:flex; gap:8px; align-items:center; }
-textarea { width:100%; min-height:100px; background:#0f0f0f; color:#eee; border:1px solid #333; border-radius:8px; padding:8px; }
-button { background:#4ea1ff; color:#000; border:none; padding:8px 12px; border-radius:8px; cursor:pointer; }
-button.secondary { background:#222; color:#ddd; border:1px solid #444; }
-button:disabled { opacity:0.5; cursor:not-allowed; }
-.feed #feedList { display:flex; flex-direction:column; gap:12px; }
-.post { border:1px solid #333; border-radius:12px; padding:12px; background:#121212; }
-.post .post-head { display:flex; gap:10px; align-items:center; margin-bottom:8px; }
-.post .avatar { width:32px; height:32px; border-radius:50%; background:#333; }
-.post .photo { width:100%; height:auto; display:block; border:1px solid #333; border-radius:8px; margin:8px 0; }
-.post .body { line-height:1.6; }
-.post .actions { margin-top:8px; display:flex; gap:8px; }
+/* bottom nav */
+#bottomNav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 60px;
+    background-color: #f0f0f0;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr auto 1fr auto 1fr;
+    align-items: center;
+    border-top: 1px solid #ccc;
+    z-index: 100;
+    box-shadow: 0 -1px 5px rgba(0,0,0,0.1);
+}
+.divider { width: 1px; height: 60%; background-color: #ccc; justify-self: center; }
+.navigater { flex: 1; height: 100%; }
+.nav_buttons { width: 100%; height: 100%; background: transparent; border: none; cursor: pointer; font-size: 16px; }
+
+/* ← 追加: PostScreen を縦横センターにする */
+#postScreen, #servicesScreen, #marketScreen {
+    display: none;
+    justify-content: center;
+    align-items: start;
+    min-height: calc(100vh - 60px); /* ナビ分を引く */
+    box-sizing: border-box;
+    width: 100%;
+    padding-bottom: 120px;
+}
+
+/* 入力UI */
+#charCount {
+    position: absolute;
+    bottom: 15px;
+    right: 20px;
+    font-size: 14px;
+    color: #999;
+}
+#postTextInput {
+    width: 100%;
+    min-height: 36px;
+    border: none;
+    outline: none;
+    font-size: 18px;
+    font-family: inherit;
+    resize: none;
+    background: transparent;
+    color: #333;
+    line-height: 1.4;
+}
+.postTextInput::placeholder { color: #999; font-weight: 400; }
+
+/* カード */
+.InputForm {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    width: 100%;
+    max-width: 750px;
+    position: relative;
+    margin: 20px auto 20px; /* ← 横中央 */
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow-x: hidden; /* 横スクロール禁止 */
+}
+
+#viewScreen {
+    overflow-y: auto; /* 必要なときだけ縦スクロール */
+    height: calc(100vh - 70px);
+    box-sizing: border-box;
+    padding-bottom: 120px; /* ← 下部の固定ボタン + ナビ分の余白 */
+}
+
+#loadMoreBtn {
+    position: fixed;
+    left: 0;
+    bottom: 60px; /* bottomNav の高さ分だけ上に */
+    width: 100%;
+    max-width: 100vw;   /* ← 横スクロール防止 */
+    box-sizing: border-box; /* ← 枠線を含めて幅計算 */
+    height: 50px;
+    z-index: 90;
+    background: #fff;
+    border: 1px solid #ccc;
+    cursor: pointer;
+    font-size: 16px;
+    overflow-x: hidden; /* 念のため */
+}
+
+#viewScreen img {
+  max-width: 200px;
+  max-height: 200px;
+  width: auto;
+  height: auto;
+  display: block;
+}
+
+/* ===== コメントUI ===== */
+.comments {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #eee;
+}
+.comment-list {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.comment-item {
+  background: #fafafa;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.comment-meta {
+  font-weight: 600;
+  font-size: 12px;
+  color: #555;
+  margin-bottom: 2px;
+}
+.comment-form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+.comment-input {
+  height: 36px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+}
+.comment-send {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  background: #fff;
+  cursor: pointer;
+  font-size: 14px;
+}
+.comment-send:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ===== 褒めるボタン ===== */
+.praise-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 9999px;
+  border: 1px solid #ccc;
+  background: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+.praise-btn.active {
+  background: #fffbe6;
+  border-color: #f3b94c;
+}
+.praise-count {
+  margin-left: 4px;
+  font-weight: 600;
+}
+
+/* ★ 追加: コインHUD */
+#coinHUD {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  z-index: 110;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 9999px;
+  padding: 6px 12px;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+/* ★ 追加: サービスUI */
+.svc-input {
+  width: 100%;
+  margin: 6px 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid #ccc;
+  box-sizing: border-box;
+}
+.svc-inline {
+  margin-right: 8px;
+}
+.svc-list {
+  display: grid;
+  gap: 10px;
+}
+.svc-card {
+  border: 1px solid #eee;
+  border-radius: 12px;
+  padding: 12px;
+}
+.svc-title {
+  font-weight: 700;
+  font-size: 16px;
+  margin-bottom: 4px;
+}
+.svc-desc {
+  color: #444;
+  margin-bottom: 8px;
+  white-space: pre-wrap;
+}
+.svc-meta {
+  font-size: 13px;
+  color: #666;
+}
+.svc-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+}
+.badge {
+  display: inline-block;
+  min-width: 20px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  background: #ffef9f;
+  border: 1px solid #f3b94c;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* ★ 追加: 注文リスト */
+.order-item {
+  border: 1px dashed #ddd;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 14px;
+}
+
+.nav_buttons {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.nav_icon {
+  width: 70%;        /* ボタン幅の7割を占有 */
+  height: 70%;       /* ボタン高の7割を占有 */
+  object-fit: contain;
+}
+
+/* 画像の強制サイズはJSの属性付与に委ねる。CSS側は干渉しない */
+#viewScreen img {
+  display: inline;
+}
