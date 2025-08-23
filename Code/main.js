@@ -849,56 +849,44 @@ function switchTab(tab) {
 
 
 // ===== 追加: 全員の投稿を集めるページャ =====
-async function collectAllPage(beforeTime, limit = postsPerPage) {
-    const collected = [];
-    const playersSnap = await database.ref("players").get();
-    if (!playersSnap.exists()) return [];
+// ★ 全プレイヤーの全投稿をまとめて取得してcreatedAt降順にする
+async function collectAllPage() {
+    const snap = await database.ref("players").get();
+    const allPosts = [];
 
-    playersSnap.forEach(playerSnap => {
+    snap.forEach((playerSnap) => {
         const uid = playerSnap.key;
         const postsSnap = playerSnap.child("posts");
-        postsSnap.forEach(child => {
-            const val = child.val() || {};
-            if (!val || !val.text || !val.text.trim()) return;
-            const ts = typeof val.createdAt === "number" ? val.createdAt : 0;
-            if (beforeTime == null || ts < beforeTime) {
-                collected.push({ uid, postId: child.key, createdAt: ts });
+        postsSnap.forEach((postSnap) => {
+            const postId = postSnap.key;
+            const postData = postSnap.val();
+            if (postData && postData.createdAt) {
+                allPosts.push({
+                    uid,
+                    postId,
+                    createdAt: postData.createdAt
+                });
             }
         });
     });
 
-    collected.sort((a, b) => b.createdAt - a.createdAt);
-    return collected.slice(0, limit);
+    // ★ createdAt降順
+    allPosts.sort((a, b) => b.createdAt - a.createdAt);
+
+    return allPosts;
 }
 
-// ===== 追加: 全体を .on で監視（新規投稿を先頭に挿入） =====
-function attachGlobalPostsOn() {
-    // uid -> { ref, handler } を保持して二重アタッチ防止
-    const listeners = new Map();
+// ★ グローバル投稿の表示
+async function attachGlobalPostsOn() {
+    const allPosts = await collectAllPage();
+    const container = document.getElementById("viewScreen");
+    container.innerHTML = ""; // 初期化
 
-    function attachFor(uid) {
-        if (listeners.has(uid)) return;
-        const ref = database.ref(`players/${uid}/posts`).limitToLast(1);
-        const handler = (snap) => {
-            const postId = snap.key;
-            if (!postId) return;
-            if (shownPostIds.has(postId)) return;
-            renderPost(postId, uid, 'top');
-        };
-        ref.on('child_added', handler);
-        listeners.set(uid, { ref, handler });
+    for (const p of allPosts) {
+        await renderPost(p.postId, p.uid, "bottom");
     }
-
-    // 既存ユーザーに付与
-    database.ref('players').once('value').then(s => {
-        s.forEach(ch => attachFor(ch.key));
-    });
-
-    // 新規ユーザーにも追従
-    database.ref('players').on('child_added', (snap) => {
-        attachFor(snap.key);
-    });
 }
+
 
 function sanitizeAndNormalizeHTML(input) {
     if (typeof input !== "string") return "";
