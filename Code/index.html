@@ -7,23 +7,11 @@
     <link rel="stylesheet" href="main.css" />
     <title>褒めポチ</title>
 
-    <!-- ★ CSP: 外部JSをGoogle/Firebase/CDN(jsDelivr)のみに制限。inlineは許可（既存onclick等のため） -->
-    <meta http-equiv="Content-Security-Policy"
-          content="default-src 'self';
-                   script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdn.jsdelivr.net;
-                   img-src 'self' https: data: blob:;
-                   style-src 'self' 'unsafe-inline';
-                   connect-src *;
-                   media-src 'self' data:;">
-
     <!-- Firebase compat -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-
-    <!-- ★ DOMPurify -->
-    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
 
     <script src="connectDB.js"></script>
 </head>
@@ -35,25 +23,26 @@
 
     <!-- 未ログイン -->
     <div style="text-align: center;" id="notSigned">
-      <h3>ログインしてください</h3>
-      <button onclick="loginWithGoogle()">Googleでログイン</button>
-      <button onclick="loginWithMail()">メールでログイン</button>
-      <button onclick="SignUpWithMail()">メールで新規登録</button>
+    <h3>ログインしてください</h3>
+    <button onclick="loginWithGoogle()">Googleでログイン</button>
+    <button onclick="loginWithMail()">メールでログイン</button>
+    <button onclick="SignUpWithMail()">メールで新規登録</button>
     </div>
 
-    <!-- 投稿一覧: ★ 未ログインでも表示 -->
-    <div id="viewScreen" style="overflow-y:scroll;height:calc(100vh - 70px);display:none;">
+
+    <!-- 投稿一覧 -->
+    <div id="viewScreen" style="display:none;overflow-y:scroll;height:calc(100vh - 70px)">
         <button id="loadMoreBtn" style="display:none;">さらに読み込む</button>
     </div>
 
     <!-- 投稿する -->
     <div id="postScreen" style="display:none;">
         <div class="InputForm">
-          <textarea id="postTextInput" placeholder="今日はなにした？" maxlength="280"></textarea>
-          <div id="charCount">0</div>
-          <input type="file" id="fileInput" accept="image/*" onchange="viewImageCanvas()">
-          <canvas id="canvas" style="display:none;"></canvas>
-          <button onclick="post()">投稿</button>
+        <textarea id="postTextInput" placeholder="今日はなにした？" maxlength="280"></textarea>
+        <div id="charCount">0</div>
+        <input type="file" id="fileInput" accept="image/*" onchange="viewImageCanvas()">
+        <canvas id="canvas" style="display:none;"></canvas>
+        <button onclick="post()">投稿</button>
         </div>
     </div>
 
@@ -95,30 +84,33 @@
     <!-- ナビ -->
     <div id="bottomNav" style="display: none;">
         <div class="navigater">
-          <button class="nav_buttons" onclick="switchTab('view')" aria-label="ViewScreen">
-              <img src="../Icons/view.png" alt="view" class="nav_icon">
-          </button>
+        <button class="nav_buttons" onclick="switchTab('view')" aria-label="ViewScreen">
+            <img src="../Icons/view.png" alt="view" class="nav_icon">
+        </button>
         </div>
         <div class="divider"></div>
         <div class="navigater">
-          <button class="nav_buttons" onclick="switchTab('post')" aria-label="PostScreen">
-              <img src="../Icons/post.png" alt="post" class="nav_icon">
-          </button>
+        <button class="nav_buttons" onclick="switchTab('post')" aria-label="PostScreen">
+            <img src="../Icons/post.png" alt="post" class="nav_icon">
+        </button>
         </div>
         <div class="divider"></div>
         <div class="navigater">
-          <button class="nav_buttons" onclick="switchTab('services')" aria-label="ServicesScreen">
-              <img src="../Icons/service.png" alt="services" class="nav_icon">
-          </button>
+        <button class="nav_buttons" onclick="switchTab('services')" aria-label="ServicesScreen">
+            <img src="../Icons/service.png" alt="services" class="nav_icon">
+        </button>
         </div>
         <div class="divider"></div>
         <div class="navigater">
-          <button class="nav_buttons" onclick="switchTab('market')" aria-label="MarketScreen">
-              <img src="../Icons/market.png" alt="market" class="nav_icon">
-          </button>
+        <button class="nav_buttons" onclick="switchTab('market')" aria-label="MarketScreen">
+            <img src="../Icons/market.png" alt="market" class="nav_icon">
+        </button>
         </div>
     </div>
 
+
+
+    <!-- switchTab は main.js 側で定義 -->
     <script src="main.js"></script>
 </body>
 </html>

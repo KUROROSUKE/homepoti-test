@@ -266,7 +266,3 @@ html, body {
   object-fit: contain;
 }
 
-/* 画像の強制サイズはJSの属性付与に委ねる。CSS側は干渉しない */
-#viewScreen img {
-  display: inline;
-}

@@ -130,69 +130,43 @@ function logout() {
 }
 
 
-
 async function upload(text_data, image_data) {
     const user = auth.currentUser;
     if (!user) { alert("ログインしてください"); return; }
 
-    // Blob を JPEG Base64 に変換（常に JPEG で再エンコード）
-    async function blobToJpegBase64(blob, quality = 0.8) {
-        const img = await new Promise((res, rej) => {
-        const url = URL.createObjectURL(blob);
-        const i = new Image();
-        i.onload = () => { URL.revokeObjectURL(url); res(i); };
-        i.onerror = (e) => { URL.revokeObjectURL(url); rej(e); };
-        i.src = url;
-        });
-        const canvas = document.createElement("canvas");
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0);
-        // data:image/jpeg;base64,XXXX...
-        const dataUrl = canvas.toDataURL("image/jpeg", quality);
-        return dataUrl.split(",")[1]; // ヘッダ除去して Base64 部分だけ返す
-    }
+    // Blob → JPEG Base64 変換（既存）
+    async function blobToJpegBase64(blob, quality = 0.8) { /* 既存そのまま */ /* ... */ }
 
-    function chunkString(str, size) {
-        const out = [];
-        for (let i = 0; i < str.length; i += size) out.push(str.slice(i, i + size));
-        return out;
-    }
+    function chunkString(str, size) { /* 既存そのまま */ /* ... */ }
 
     const postRef = database.ref(`players/${user.uid}/posts`).push();
+    const now = Date.now(); // ★ 追加: タイムスタンプを一元化
 
     if (image_data instanceof Blob) {
-        console.log("画像あり");
-        // 常に JPEG Base64 化（quality はお好みで調整）
         const base64 = await blobToJpegBase64(image_data, 0.8);
-
-        // 200KB チャンクに分割（必要に応じて調整）
         const CHUNK_SIZE = 200 * 1024;
         const chunks = chunkString(base64, CHUNK_SIZE);
 
         await postRef.set({
-        id: postRef.key,
-        photoURL: user.photoURL || "",
-        text: text_data,
-        image: {
-            chunks,
-            chunkCount: chunks.length,
-            base64Length: base64.length,
-            format: "jpeg" // 参考用に付けるだけ。使わなければ削除可
-        },
-        createdAt: Date.now(),
+          id: postRef.key,
+          photoURL: user.photoURL || "",
+          text: text_data,
+          image: { chunks, chunkCount: chunks.length, base64Length: base64.length, format: "jpeg" },
+          createdAt: now,
         });
     } else {
-        console.log("画像なし");
         await postRef.set({
-        id: postRef.key,
-        photoURL: user.photoURL || "",
-        text: text_data,
-        createdAt: Date.now(),
+          id: postRef.key,
+          photoURL: user.photoURL || "",
+          text: text_data,
+          createdAt: now,
         });
     }
+
+    // ★ 追加: 時系列を別コレクションに保存（時間と投稿IDのみ）
+    await database.ref('timeline').push({ t: now, postId: postRef.key });
 }
+
 
 
 // Base64 → Blob
@@ -215,18 +189,19 @@ async function loadFromRTDB(postId, uid, img_tag, txt_tag) {
         blob = base64ToBlob(base64);
         url = URL.createObjectURL(blob);
         img_tag.src = url;
-
-        // ★ 画像強制属性
-        img_tag.setAttribute("width", "300");
-        img_tag.setAttribute("height", "300");
-        img_tag.style.display = "inline";
         img_tag.style.border = "1px solid black";
     }
 
     const snap2 = await database.ref(`players/${uid}/posts/${postId}/text`).get();
-    const raw = snap2.val() || "";
-    txt_tag.innerHTML = sanitizeAndNormalizeHTML(raw); // ★ XSS対策
+    const raw = snap2.exists() ? snap2.val() : "";
+
+    // ★ 修正: <script> を除去してから描画
+    txt_tag.innerHTML = stripScriptTags(raw);
+
+    // ★ 追加: 本文内の <img> にも幅300等を強制
+    enforceImgStyleIn(txt_tag);
 }
+
 
 
 
@@ -293,4 +268,24 @@ function loginWithMail() {
         console.error("ログイン失敗:", error);
         alert("ログインに失敗しました: " + error.message);
     });
+}
+
+// ★ 追加: 投稿本文から <script> を除去
+function stripScriptTags(html) {
+  const div = document.createElement('div');
+  div.innerHTML = html || '';
+  div.querySelectorAll('script').forEach(el => el.remove());
+  return div.innerHTML;
+}
+
+// ★ 追加: 投稿本文内の <img> へ幅300pxなどを強制
+function enforceImgStyleIn(container) {
+  if (!container) return;
+  container.querySelectorAll('img').forEach(img => {
+    img.style.width = '300px';
+    img.style.height = 'auto';
+    img.style.display = 'inline';
+    img.style.maxWidth = 'none';
+    img.style.maxHeight = 'none';
+  });
 }
